@@ -115,7 +115,20 @@ struct Record {
     id: u64,
     armor: Kind,
     class: Class,
+    exotic: bool,
     stat_array: Stats,
+}
+
+impl fmt::Display for Record {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{} {}", 
+            match self.exotic {
+                true => "*",
+                false => ""
+            }, 
+            self.name, 
+            self.stat_array)
+    }
 }
 
 fn import_items(mut reader: Reader<File>) -> Vec<Record> {
@@ -129,6 +142,7 @@ fn import_items(mut reader: Reader<File>) -> Vec<Record> {
             let for_kind = &record[5]; // Gauntlets
             let for_class = &record[7];
             let season = &record[17]; // 2
+            let is_exotic: bool = &record[4] == "Exotic";
 
             let mob = &record[27];
             let res = &record[28];
@@ -152,6 +166,7 @@ fn import_items(mut reader: Reader<File>) -> Vec<Record> {
                 id: id.parse::<u64>().unwrap_or_default(),
                 armor: Kind::from_str(for_kind).unwrap(),
                 class: Class::from_str(for_class).unwrap(),
+                exotic: is_exotic,
                 stat_array: s,
             }
         })
@@ -223,11 +238,12 @@ fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slo
     // print or export the results
     for mut ll in objectively_better {
         let first_item = ll.front().unwrap();
-        print!("{} {} is objectively better than ", first_item.name, first_item.stat_array);
+        if first_item.exotic { continue; } // ignore exotics
+        print!("{} is objectively better than ", first_item);
         ll.pop_front();
         while ll.len() > 0 {
             let item = ll.front().unwrap();
-            print!(" {} {},", item.name, item.stat_array);
+            print!(" {},", item);
             ll.pop_front();
         }
         println!();
