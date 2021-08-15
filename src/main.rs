@@ -253,7 +253,7 @@ fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slo
         ll.pop_front();
         while ll.len() > 0 {
             let item = ll.front().unwrap();
-            print!(" {},", item);
+            print!(" {}{}", item, if ll.len() > 1 { "," } else { "" });
             ll.pop_front();
         }
         println!();
