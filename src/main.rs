@@ -1,18 +1,35 @@
-use csv;
-use std::fs::File;
-use std::ffi::OsString;
-use std::error::Error;
-use std::env;
-use std::str::FromStr;
+use csv::{Reader};
+use std::{env, ffi::OsString, fs::File, str::FromStr};
+use thiserror::Error;
 
 fn main() {
     println!("Destiny: Armour Scrap Advisor");
-    println!("\tUsage: Either pass in a .csv from DIM or put dim.csv in the calling directory.");
-    let err = run();
+    if env::args().len() < 2 {
+        println!("\tUsage: Either pass in a .csv from DIM or put dim.csv in the calling directory.");
+
+    } else {
+        real_main().expect("General Failure");
+    }
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("IO error {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Invalid Couldn't Parse")]
+    InvalidParse,
+
+    #[error("CSV error {0}")]
+    CSV(#[from] csv::Error),
+
+    #[error("{0}")]
+    Other(&'static str),
+}
+
+#[derive(Debug, PartialEq)]
 enum Class {
     Warlock,
     Titan,
@@ -20,13 +37,13 @@ enum Class {
 }
 
 impl FromStr for Class {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "Warlock" => Ok(Class::Warlock),
             "Titan" => Ok(Class::Titan),
             "Hunter" => Ok(Class::Hunter),
-            _ => Err(()),
+            _ => Err(Error::InvalidParse),
         }
     }
 }
@@ -37,12 +54,12 @@ enum Kind {
     Arms,
     Chest,
     Legs,
-    Bond
+    Bond,
 }
 
 impl FromStr for Kind {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "Helmet" => Ok(Kind::Helmet),
             "Gauntlets" => Ok(Kind::Arms),
@@ -51,7 +68,7 @@ impl FromStr for Kind {
             "Hunter Cloak" => Ok(Kind::Bond),
             "Warlock Bond" => Ok(Kind::Bond),
             "Titan Mark" => Ok(Kind::Bond),
-            _ => Err(())
+            _ => Err(Error::InvalidParse),
         }
     }
 }
@@ -75,60 +92,61 @@ struct Record {
     stat_array: Stats,
 }
 
-fn import_items(mut reader: csv::Reader<File>) -> Result<Vec<Record>, Box<Error>> {
+fn import_items(mut reader: Reader<File>) -> Vec<Record> {
+    reader
+        .records()
+        .map(|x| {
+            let record = x.expect("Invalid Record");
 
-    let mut vault: Vec<Record> = Vec::new();
+            let name = &record[0]; // Aeon Swift
+            let id = &record[2]; // 27394873298749238792
+            let for_kind = &record[5]; // Gauntlets
+            let for_class = &record[7];
+            let season = &record[17]; // 2
 
-    for result in reader.records() {
-        let record = result?;
-        let name = &record[0]; // Aeon Swift
-        let id = &record[2]; // 27394873298749238792
-        let for_kind = &record[5]; // Gauntlets
-        let for_class = &record[7];
-        let season = &record[17]; // 2
-        
-        let mob = &record[27];
-        let res = &record[28];
-        let rec = &record[29];
-        let dis = &record[30];
-        let int = &record[31];
-        let str = &record[32];
+            let mob = &record[27];
+            let res = &record[28];
+            let rec = &record[29];
+            let dis = &record[30];
+            let int = &record[31];
+            let str = &record[32];
 
-        // create stat array
-        let s  = Stats{
-            mobility: mob.parse::<i8>().unwrap_or_default(),
-            resilience: res.parse::<i8>().unwrap_or_default(),
-            recovery: rec.parse::<i8>().unwrap_or_default(),
-            discipline: dis.parse::<i8>().unwrap_or_default(),
-            intelligence: int.parse::<i8>().unwrap_or_default(),
-            strength: str.parse::<i8>().unwrap_or_default()
-        };
+            // create stat array
+            let s = Stats {
+                mobility: mob.parse::<i8>().unwrap_or_default(),
+                resilience: res.parse::<i8>().unwrap_or_default(),
+                recovery: rec.parse::<i8>().unwrap_or_default(),
+                discipline: dis.parse::<i8>().unwrap_or_default(),
+                intelligence: int.parse::<i8>().unwrap_or_default(),
+                strength: str.parse::<i8>().unwrap_or_default(),
+            };
 
-        let r = Record {
-            name: name.to_string(),
-            id: id.parse::<u64>().unwrap_or_default(),
-            armor: Kind::from_str(for_kind).unwrap(),
-            class: Class::from_str(for_class).unwrap(),
-            stat_array: s,
-        };
-        vault.push(r);
-        // println!("{} ({}) - {} from Season {}", name, id, Kind, season);
-        //println!("{:?}", r);
-    };
-    Ok(vault)
+            Record {
+                name: name.to_string(),
+                id: id.parse::<u64>().unwrap_or_default(),
+                armor: Kind::from_str(for_kind).unwrap(),
+                class: Class::from_str(for_class).unwrap(),
+                stat_array: s,
+            }
+        })
+        .collect()
 }
 
-fn run() -> Result<(), Box<Error>> {
-    let filePath = get_first_argument();
+fn real_main() -> Result<()> {
+    let file_path = get_first_argument();
 
-    if !std::path::PathBuf::from(&filePath).exists() || std::path::PathBuf::from(&filePath).ends_with(".csv") {
-        panic!("File not found or incorrect type.")
-    };
-    
-    let file = File::open(filePath)?;
-    let mut reader = csv::Reader::from_reader(file);
+    assert!(
+        !std::path::PathBuf::from(&file_path).exists()
+            || (std::path::PathBuf::from(&file_path)
+                .extension()
+                .unwrap_or_default()
+                == "csv"),
+        "CSV file not found."
+    );
 
-    let vault = import_items(reader).unwrap();
+    let file = File::open(file_path)?;
+    let reader = Reader::from_reader(file);
+    let vault = import_items(reader);
 
     println!("Records:\t\t{}", vault.len());
 
@@ -146,6 +164,6 @@ fn run() -> Result<(), Box<Error>> {
 fn get_first_argument() -> OsString {
     match env::args_os().nth(1) {
         None => OsString::from("./dim.csv"),
-        Some(filePath) => filePath,
+        Some(file_path) => file_path,
     }
 }
