@@ -1,15 +1,14 @@
 use csv::{Reader};
-use std::{env, ffi::OsString, fs::File, str::FromStr};
+use std::{cmp::Ordering, env, ffi::OsString, fmt, fs::File, str::FromStr};
 use thiserror::Error;
+use std::collections::LinkedList;
 
 fn main() {
     println!("Destiny: Armour Scrap Advisor");
     if env::args().len() < 2 {
         println!("\tUsage: Either pass in a .csv from DIM or put dim.csv in the calling directory.");
-
-    } else {
-        real_main().expect("General Failure");
     }
+    real_main().expect("General Failure");
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -49,6 +48,7 @@ impl FromStr for Class {
 }
 
 #[derive(Debug)]
+#[derive(PartialEq)]
 enum Kind {
     Helmet,
     Arms,
@@ -74,6 +74,7 @@ impl FromStr for Kind {
 }
 
 #[derive(Debug)]
+#[derive(PartialEq, PartialOrd, Eq)]
 struct Stats {
     mobility: i8,
     resilience: i8,
@@ -81,6 +82,31 @@ struct Stats {
     discipline: i8,
     intelligence: i8,
     strength: i8,
+}
+
+impl fmt::Display for Stats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({:<2} {:<2} {:<2} {:<2} {:<2} {:<2})", self.mobility, self.resilience, self.recovery, self.discipline, self.intelligence, self.strength)
+    }
+}
+
+trait GEStatArray {
+    // ord seems to have a hard time with multiple keys to sort by
+    // and trying to find help online just results in a bunch of
+    // explanations about floating point imprecision? so we're going
+    // to try making a rust-looking way of getting what we want
+    fn collective_ge(&self, other:&Self) -> bool;
+}
+
+impl GEStatArray for Stats {
+    fn collective_ge(&self, other:&Self) -> bool {
+        return &self.mobility >= &other.mobility &&
+            &self.resilience >= &other.resilience &&
+            &self.recovery >= &other.recovery &&
+            &self.discipline >= &other.discipline &&
+            &self.intelligence >= &other.intelligence &&
+            &self.strength >= &other.strength;
+    }
 }
 
 #[derive(Debug)]
@@ -158,7 +184,54 @@ fn real_main() -> Result<()> {
     println!("Titan\t\t\t{}", titan.len());
     println!("Hunter\t\t\t{}", hunter.len());
 
+    print_full_gear_heirarchy(&vault, &Class::Warlock);
+    print_full_gear_heirarchy(&vault, &Class::Hunter);
+    print_full_gear_heirarchy(&vault, &Class::Titan);
+    
     Ok(())
+}
+
+fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: &Class) {
+    print_heirarchy_of_type(vault, character_type, Kind::Helmet);
+    print_heirarchy_of_type(vault, character_type, Kind::Arms);
+    print_heirarchy_of_type(vault, character_type, Kind::Chest);
+    print_heirarchy_of_type(vault, character_type, Kind::Legs);
+    print_heirarchy_of_type(vault, character_type, Kind::Bond);
+}
+
+fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slot: Kind) {
+    let vault_filtered: Vec<&Record> = vault.iter().filter(|r| r.class == *character_type && r.armor == gear_slot).collect();
+
+    let mut objectively_better: Vec<LinkedList<&Record>> = Vec::new();
+
+    for gear in vault_filtered.iter() {
+        let mut ll: LinkedList<&Record> = LinkedList::new();
+        ll.push_front(gear);
+        for gear_compare in vault_filtered.iter() {
+            if gear.stat_array.collective_ge(&gear_compare.stat_array) {
+                if gear.stat_array != gear_compare.stat_array {
+                    ll.push_back(&gear_compare);
+                }
+            }       
+        }
+        // ll will always have at least 1 item, if there's more then we've
+        // found something that is lower in every stat
+        if ll.len() > 1 {
+            objectively_better.push(ll);
+        }
+    }
+    // print or export the results
+    for mut ll in objectively_better {
+        let first_item = ll.front().unwrap();
+        print!("{} {} is objectively better than ", first_item.name, first_item.stat_array);
+        ll.pop_front();
+        while ll.len() > 0 {
+            let item = ll.front().unwrap();
+            print!(" {} {},", item.name, item.stat_array);
+            ll.pop_front();
+        }
+        println!();
+    }
 }
 
 fn get_first_argument() -> OsString {
