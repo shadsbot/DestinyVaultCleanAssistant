@@ -22,7 +22,7 @@ fn main() {
             println!(
                 "\tUsage: Either pass in a .csv from DIM or put dim.csv in the calling directory."
             );
-            exit(-1);
+            exit(1);
         }
     };
     let reader = Reader::from_reader(file);
@@ -128,7 +128,6 @@ impl fmt::Display for Stats {
         )
     }
 }
-
 
 impl Stats {
     // ord seems to have a hard time with multiple keys to sort by
