@@ -1,14 +1,46 @@
-use csv::{Reader};
-use std::{cmp::Ordering, env, ffi::OsString, fmt, fs::File, str::FromStr};
-use thiserror::Error;
+use csv::Reader;
 use std::collections::LinkedList;
+use std::process::exit;
+use std::{cmp::Ordering, env, ffi::OsString, fmt, fs::File, path::PathBuf, str::FromStr};
+use thiserror::Error;
 
 fn main() {
     println!("Destiny: Armour Scrap Advisor");
-    if env::args().len() < 2 {
-        println!("\tUsage: Either pass in a .csv from DIM or put dim.csv in the calling directory.");
-    }
-    real_main().expect("General Failure");
+
+    let file_path = get_path_env();
+    let file = match File::open(&file_path)
+        .map_err(|e| Error::Io(e))
+        .and_then(
+            |f| match file_path.extension().unwrap_or_default() == "csv" {
+                true => Ok(f),
+                false => Err(Error::Other("Couldn't find CSV file.")),
+            },
+        ) {
+        Ok(file) => file,
+        Err(e) => {
+            println!("\t{}", e);
+            println!(
+                "\tUsage: Either pass in a .csv from DIM or put dim.csv in the calling directory."
+            );
+            exit(-1);
+        }
+    };
+    let reader = Reader::from_reader(file);
+    let vault = import_items(reader);
+
+    println!("Records:\t\t{}", vault.len());
+
+    let warlock: Vec<&Record> = vault.iter().filter(|r| r.class == Class::Warlock).collect();
+    let titan: Vec<&Record> = vault.iter().filter(|r| r.class == Class::Titan).collect();
+    let hunter: Vec<&Record> = vault.iter().filter(|r| r.class == Class::Hunter).collect();
+
+    println!("Warlock\t\t\t{}", warlock.len());
+    println!("Titan\t\t\t{}", titan.len());
+    println!("Hunter\t\t\t{}", hunter.len());
+
+    print_full_gear_heirarchy(&vault, &Class::Warlock);
+    print_full_gear_heirarchy(&vault, &Class::Hunter);
+    print_full_gear_heirarchy(&vault, &Class::Titan);
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -47,8 +79,7 @@ impl FromStr for Class {
     }
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Kind {
     Helmet,
     Arms,
@@ -73,8 +104,7 @@ impl FromStr for Kind {
     }
 }
 
-#[derive(Debug)]
-#[derive(PartialEq, PartialOrd, Eq)]
+#[derive(Debug, PartialEq, PartialOrd, Eq)]
 struct Stats {
     mobility: i8,
     resilience: i8,
@@ -86,26 +116,32 @@ struct Stats {
 
 impl fmt::Display for Stats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({:<2} {:<2} {:<2} {:<2} {:<2} {:<2})", self.mobility, self.resilience, self.recovery, self.discipline, self.intelligence, self.strength)
+        write!(
+            f,
+            "({:<2} {:<2} {:<2} {:<2} {:<2} {:<2})",
+            self.mobility,
+            self.resilience,
+            self.recovery,
+            self.discipline,
+            self.intelligence,
+            self.strength
+        )
     }
 }
 
-trait GEStatArray {
+
+impl Stats {
     // ord seems to have a hard time with multiple keys to sort by
     // and trying to find help online just results in a bunch of
     // explanations about floating point imprecision? so we're going
     // to try making a rust-looking way of getting what we want
-    fn collective_ge(&self, other:&Self) -> bool;
-}
-
-impl GEStatArray for Stats {
-    fn collective_ge(&self, other:&Self) -> bool {
-        return &self.mobility >= &other.mobility &&
-            &self.resilience >= &other.resilience &&
-            &self.recovery >= &other.recovery &&
-            &self.discipline >= &other.discipline &&
-            &self.intelligence >= &other.intelligence &&
-            &self.strength >= &other.strength;
+    fn collective_ge(&self, other: &Self) -> bool {
+        return &self.mobility >= &other.mobility
+            && &self.resilience >= &other.resilience
+            && &self.recovery >= &other.recovery
+            && &self.discipline >= &other.discipline
+            && &self.intelligence >= &other.intelligence
+            && &self.strength >= &other.strength;
     }
 }
 
@@ -121,13 +157,16 @@ struct Record {
 
 impl fmt::Display for Record {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{} {}", 
+        write!(
+            f,
+            "{}{} {}",
             match self.exotic {
                 true => "*",
-                false => ""
-            }, 
-            self.name, 
-            self.stat_array)
+                false => "",
+            },
+            self.name,
+            self.stat_array
+        )
     }
 }
 
@@ -173,39 +212,6 @@ fn import_items(mut reader: Reader<File>) -> Vec<Record> {
         .collect()
 }
 
-fn real_main() -> Result<()> {
-    let file_path = get_first_argument();
-
-    assert!(
-        !std::path::PathBuf::from(&file_path).exists()
-            || (std::path::PathBuf::from(&file_path)
-                .extension()
-                .unwrap_or_default()
-                == "csv"),
-        "CSV file not found."
-    );
-
-    let file = File::open(file_path)?;
-    let reader = Reader::from_reader(file);
-    let vault = import_items(reader);
-
-    println!("Records:\t\t{}", vault.len());
-
-    let warlock: Vec<&Record> = vault.iter().filter(|r| r.class == Class::Warlock).collect();
-    let titan: Vec<&Record> = vault.iter().filter(|r| r.class == Class::Titan).collect();
-    let hunter: Vec<&Record> = vault.iter().filter(|r| r.class == Class::Hunter).collect();
-
-    println!("Warlock\t\t\t{}", warlock.len());
-    println!("Titan\t\t\t{}", titan.len());
-    println!("Hunter\t\t\t{}", hunter.len());
-
-    print_full_gear_heirarchy(&vault, &Class::Warlock);
-    print_full_gear_heirarchy(&vault, &Class::Hunter);
-    print_full_gear_heirarchy(&vault, &Class::Titan);
-    
-    Ok(())
-}
-
 fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: &Class) {
     print_heirarchy_of_type(vault, character_type, Kind::Helmet);
     print_heirarchy_of_type(vault, character_type, Kind::Arms);
@@ -215,7 +221,10 @@ fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: &Class) {
 }
 
 fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slot: Kind) {
-    let vault_filtered: Vec<&Record> = vault.iter().filter(|r| r.class == *character_type && r.armor == gear_slot).collect();
+    let vault_filtered: Vec<&Record> = vault
+        .iter()
+        .filter(|r| r.class == *character_type && r.armor == gear_slot)
+        .collect();
 
     let mut objectively_better: Vec<LinkedList<&Record>> = Vec::new();
 
@@ -227,7 +236,7 @@ fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slo
                 if gear.stat_array != gear_compare.stat_array {
                     ll.push_back(&gear_compare);
                 }
-            }       
+            }
         }
         // ll will always have at least 1 item, if there's more then we've
         // found something that is lower in every stat
@@ -238,7 +247,9 @@ fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slo
     // print or export the results
     for mut ll in objectively_better {
         let first_item = ll.front().unwrap();
-        if first_item.exotic { continue; } // ignore exotics
+        if first_item.exotic {
+            continue;
+        } // ignore exotics
         print!("{} is objectively better than ", first_item);
         ll.pop_front();
         while ll.len() > 0 {
@@ -250,9 +261,9 @@ fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slo
     }
 }
 
-fn get_first_argument() -> OsString {
+fn get_path_env() -> PathBuf {
     match env::args_os().nth(1) {
-        None => OsString::from("./dim.csv"),
-        Some(file_path) => file_path,
+        None => PathBuf::from("./dim.csv"),
+        Some(file_path) => file_path.into(),
     }
 }
