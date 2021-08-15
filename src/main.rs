@@ -1,9 +1,11 @@
 use csv;
+use std::collections::LinkedList;
 use std::fs::File;
 use std::ffi::OsString;
 use std::error::Error;
-use std::env;
+use std::{env, vec};
 use std::str::FromStr;
+use std::fmt;
 
 fn main() {
     println!("Destiny: Armour Scrap Advisor");
@@ -32,6 +34,7 @@ impl FromStr for Class {
 }
 
 #[derive(Debug)]
+#[derive(PartialEq)]
 enum Kind {
     Helmet,
     Arms,
@@ -57,6 +60,7 @@ impl FromStr for Kind {
 }
 
 #[derive(Debug)]
+#[derive(PartialEq, PartialOrd)]
 struct Stats {
     mobility: i8,
     resilience: i8,
@@ -64,6 +68,12 @@ struct Stats {
     discipline: i8,
     intelligence: i8,
     strength: i8,
+}
+
+impl fmt::Display for Stats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({:<2} {:<2} {:<2} {:<2} {:<2} {:<2})", self.mobility, self.resilience, self.recovery, self.discipline, self.intelligence, self.strength)
+    }
 }
 
 #[derive(Debug)]
@@ -112,8 +122,6 @@ fn import_items(mut reader: csv::Reader<File>) -> Result<Vec<Record>, Box<Error>
             stat_array: s,
         };
         vault.push(r);
-        // println!("{} ({}) - {} from Season {}", name, id, Kind, season);
-        //println!("{:?}", r);
     };
     Ok(vault)
 }
@@ -140,7 +148,52 @@ fn run() -> Result<(), Box<Error>> {
     println!("Titan\t\t\t{}", titan.len());
     println!("Hunter\t\t\t{}", hunter.len());
 
+    print_heirarchy_of_type(&vault, Class::Warlock, Kind::Helmet);
+    print_heirarchy_of_type(&vault, Class::Warlock, Kind::Chest);
+    print_heirarchy_of_type(&vault, Class::Warlock, Kind::Arms);
+    print_heirarchy_of_type(&vault, Class::Warlock, Kind::Legs);
+    print_heirarchy_of_type(&vault, Class::Warlock, Kind::Bond);
+
     Ok(())
+}
+
+fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: Class, gear_slot: Kind) {
+    let vault_filtered: Vec<&Record> = vault.iter().filter(|r| r.class == character_type && r.armor == gear_slot).collect();
+
+    let mut objectively_better: Vec<LinkedList<&Record>> = Vec::new();
+    for record_to_compare in vault_filtered.iter() {
+        let mut ll: LinkedList<&Record> = LinkedList::new();
+        ll.push_front(record_to_compare);
+        for record_to_check_against in vault_filtered.iter() {     
+            if record_to_compare.stat_array.mobility >= record_to_check_against.stat_array.mobility &&
+            record_to_compare.stat_array.resilience >= record_to_check_against.stat_array.resilience &&
+            record_to_compare.stat_array.recovery >= record_to_check_against.stat_array.recovery &&
+            record_to_compare.stat_array.discipline >= record_to_check_against.stat_array.discipline &&
+            record_to_compare.stat_array.intelligence >= record_to_check_against.stat_array.intelligence &&
+            record_to_compare.stat_array.strength >= record_to_check_against.stat_array.strength {
+                if !record_to_compare.stat_array.eq(&record_to_check_against.stat_array) {
+                    ll.push_back(&record_to_check_against);
+                } 
+            }                
+        }
+        // ll will always have at least 1 item, if there's more then we've
+        // found something that is lower in every stat
+        if ll.len() > 1 {
+            objectively_better.push(ll);
+        }
+    }
+
+    for mut ll in objectively_better {
+        let firstI = ll.front().unwrap();
+        print!("{} {} is objectively better than ", firstI.name, firstI.stat_array);
+        ll.pop_front();
+        while ll.len() > 0 {
+            let item = ll.front().unwrap();
+            print!(" {} {},", item.name, item.stat_array);
+            ll.pop_front();
+        }
+        println!();
+    }
 }
 
 fn get_first_argument() -> OsString {
