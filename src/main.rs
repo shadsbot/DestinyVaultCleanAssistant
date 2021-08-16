@@ -38,9 +38,9 @@ fn main() {
     println!("Titan\t\t\t{}", titan.len());
     println!("Hunter\t\t\t{}", hunter.len());
 
-    print_full_gear_heirarchy(&vault, &Class::Warlock);
-    print_full_gear_heirarchy(&vault, &Class::Hunter);
-    print_full_gear_heirarchy(&vault, &Class::Titan);
+    print_full_gear_heirarchy(&vault, Class::Warlock);
+    print_full_gear_heirarchy(&vault, Class::Hunter);
+    print_full_gear_heirarchy(&vault, Class::Titan);
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -135,12 +135,12 @@ impl Stats {
     // explanations about floating point imprecision? so we're going
     // to try making a rust-looking way of getting what we want
     fn collective_ge(&self, other: &Self) -> bool {
-        return &self.mobility >= &other.mobility
-            && &self.resilience >= &other.resilience
-            && &self.recovery >= &other.recovery
-            && &self.discipline >= &other.discipline
-            && &self.intelligence >= &other.intelligence
-            && &self.strength >= &other.strength;
+        return self.mobility >= other.mobility
+            && self.resilience >= other.resilience
+            && self.recovery >= other.recovery
+            && self.discipline >= other.discipline
+            && self.intelligence >= other.intelligence
+            && self.strength >= other.strength;
     }
 }
 
@@ -211,12 +211,12 @@ fn import_items(mut reader: Reader<File>) -> Vec<Record> {
         .collect()
 }
 
-fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: &Class) {
-    print_heirarchy_of_type(vault, character_type, Kind::Helmet);
-    print_heirarchy_of_type(vault, character_type, Kind::Arms);
-    print_heirarchy_of_type(vault, character_type, Kind::Chest);
-    print_heirarchy_of_type(vault, character_type, Kind::Legs);
-    print_heirarchy_of_type(vault, character_type, Kind::Bond);
+fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: Class) {
+    print_heirarchy_of_type(vault, &character_type, Kind::Helmet);
+    print_heirarchy_of_type(vault, &character_type, Kind::Arms);
+    print_heirarchy_of_type(vault, &character_type, Kind::Chest);
+    print_heirarchy_of_type(vault, &character_type, Kind::Legs);
+    print_heirarchy_of_type(vault, &character_type, Kind::Bond);
 }
 
 fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slot: Kind) {
