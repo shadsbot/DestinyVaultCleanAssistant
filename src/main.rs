@@ -1,7 +1,6 @@
 use csv::Reader;
-use std::collections::LinkedList;
 use std::process::exit;
-use std::{cmp::Ordering, env, ffi::OsString, fmt, fs::File, path::PathBuf, str::FromStr};
+use std::{cmp::Ordering, env, fmt, fs::File, path::PathBuf, str::FromStr};
 use thiserror::Error;
 
 fn main() {
@@ -104,7 +103,7 @@ impl FromStr for Kind {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Eq)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Clone, Copy)]
 struct Stats {
     mobility: i8,
     resilience: i8,
@@ -220,43 +219,32 @@ fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: Class) {
 }
 
 fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slot: Kind) {
-    let vault_filtered: Vec<&Record> = vault
+    let mut vault_filtered: Vec<&Record> = vault
         .iter()
         .filter(|r| r.class == *character_type && r.armor == gear_slot)
         .collect();
 
-    let mut objectively_better: Vec<LinkedList<&Record>> = Vec::new();
+    vault_filtered.sort_by_key(|x| x.stat_array);
 
-    for gear in vault_filtered.iter() {
-        let mut ll: LinkedList<&Record> = LinkedList::new();
-        ll.push_front(gear);
-        for gear_compare in vault_filtered.iter() {
-            if gear.stat_array.collective_ge(&gear_compare.stat_array) {
-                if gear.stat_array != gear_compare.stat_array {
-                    ll.push_back(&gear_compare);
-                }
+    let vault_len = vault_filtered.len();
+    for n in 0..=vault_len {
+        let top = vault_filtered[n];
+
+        let mut worse: Vec<&Record> = Vec::new();
+        for y in n..=vault_len {
+            let other = vault_filtered[y];
+            if top.stat_array != other.stat_array && !other.exotic {
+                worse.push(other);
             }
         }
-        // ll will always have at least 1 item, if there's more then we've
-        // found something that is lower in every stat
-        if ll.len() > 1 {
-            objectively_better.push(ll);
+
+        if !worse.is_empty() {
+            print!("{} is objectively better than: ", top);
+            for item in worse.iter() {
+                print!("{}, ", item);
+            }
+            println!();
         }
-    }
-    // print or export the results
-    for mut ll in objectively_better {
-        let first_item = ll.front().unwrap();
-        if first_item.exotic {
-            continue;
-        } // ignore exotics
-        print!("{} is objectively better than ", first_item);
-        ll.pop_front();
-        while ll.len() > 0 {
-            let item = ll.front().unwrap();
-            print!(" {}{}", item, if ll.len() > 1 { "," } else { "" });
-            ll.pop_front();
-        }
-        println!();
     }
 }
 
