@@ -1,6 +1,7 @@
 use csv::Reader;
+use std::collections::LinkedList;
 use std::process::exit;
-use std::{cmp::Ordering, env, fmt, fs::File, path::PathBuf, str::FromStr};
+use std::{cmp::Ordering, env, ffi::OsString, fmt, fs::File, path::PathBuf, str::FromStr};
 use thiserror::Error;
 
 fn main() {
@@ -103,7 +104,7 @@ impl FromStr for Kind {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, PartialOrd, Eq)]
 struct Stats {
     mobility: i8,
     resilience: i8,
@@ -219,29 +220,25 @@ fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: Class) {
 }
 
 fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slot: Kind) {
-    let mut vault_filtered: Vec<&Record> = vault
+    let vault_filtered: Vec<&Record> = vault
         .iter()
         .filter(|r| r.class == *character_type && r.armor == gear_slot)
         .collect();
 
-    vault_filtered.sort_by_key(|x| x.stat_array);
-
-    let vault_len = vault_filtered.len();
-    for n in 0..=vault_len {
-        let top = vault_filtered[n];
-
+    for item in vault_filtered.iter() {
         let mut worse: Vec<&Record> = Vec::new();
-        for y in n..=vault_len {
-            let other = vault_filtered[y];
-            if top.stat_array != other.stat_array && !other.exotic {
+        for other in vault_filtered.iter() {
+            if item.stat_array.collective_ge(&other.stat_array)
+                && item.stat_array != other.stat_array
+                && !other.exotic
+            {
                 worse.push(other);
             }
         }
-
         if !worse.is_empty() {
-            print!("{} is objectively better than: ", top);
-            for item in worse.iter() {
-                print!("{}, ", item);
+            print!("{} is objectively better than ", item);
+            for other in worse {
+                print!("{}, ", other);
             }
             println!();
         }
