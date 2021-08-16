@@ -231,6 +231,7 @@ fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slo
             if item.stat_array.collective_ge(&other.stat_array)
                 && item.stat_array != other.stat_array
                 && !other.exotic
+                && !item.exotic
             {
                 worse.push(other);
             }
