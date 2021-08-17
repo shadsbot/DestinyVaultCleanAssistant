@@ -38,9 +38,9 @@ fn main() {
     println!("Titan\t\t\t{}", titan.len());
     println!("Hunter\t\t\t{}", hunter.len());
 
-    print_full_gear_heirarchy(&vault, &Class::Warlock);
-    print_full_gear_heirarchy(&vault, &Class::Hunter);
-    print_full_gear_heirarchy(&vault, &Class::Titan);
+    print_full_gear_heirarchy(&vault, Class::Warlock);
+    print_full_gear_heirarchy(&vault, Class::Hunter);
+    print_full_gear_heirarchy(&vault, Class::Titan);
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -135,12 +135,12 @@ impl Stats {
     // explanations about floating point imprecision? so we're going
     // to try making a rust-looking way of getting what we want
     fn collective_ge(&self, other: &Self) -> bool {
-        return &self.mobility >= &other.mobility
-            && &self.resilience >= &other.resilience
-            && &self.recovery >= &other.recovery
-            && &self.discipline >= &other.discipline
-            && &self.intelligence >= &other.intelligence
-            && &self.strength >= &other.strength;
+        return self.mobility >= other.mobility
+            && self.resilience >= other.resilience
+            && self.recovery >= other.recovery
+            && self.discipline >= other.discipline
+            && self.intelligence >= other.intelligence
+            && self.strength >= other.strength;
     }
 }
 
@@ -211,12 +211,12 @@ fn import_items(mut reader: Reader<File>) -> Vec<Record> {
         .collect()
 }
 
-fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: &Class) {
-    print_heirarchy_of_type(vault, character_type, Kind::Helmet);
-    print_heirarchy_of_type(vault, character_type, Kind::Arms);
-    print_heirarchy_of_type(vault, character_type, Kind::Chest);
-    print_heirarchy_of_type(vault, character_type, Kind::Legs);
-    print_heirarchy_of_type(vault, character_type, Kind::Bond);
+fn print_full_gear_heirarchy(vault: &Vec<Record>, character_type: Class) {
+    print_heirarchy_of_type(vault, &character_type, Kind::Helmet);
+    print_heirarchy_of_type(vault, &character_type, Kind::Arms);
+    print_heirarchy_of_type(vault, &character_type, Kind::Chest);
+    print_heirarchy_of_type(vault, &character_type, Kind::Legs);
+    print_heirarchy_of_type(vault, &character_type, Kind::Bond);
 }
 
 fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slot: Kind) {
@@ -225,38 +225,24 @@ fn print_heirarchy_of_type(vault: &Vec<Record>, character_type: &Class, gear_slo
         .filter(|r| r.class == *character_type && r.armor == gear_slot)
         .collect();
 
-    let mut objectively_better: Vec<LinkedList<&Record>> = Vec::new();
-
-    for gear in vault_filtered.iter() {
-        let mut ll: LinkedList<&Record> = LinkedList::new();
-        ll.push_front(gear);
-        for gear_compare in vault_filtered.iter() {
-            if gear.stat_array.collective_ge(&gear_compare.stat_array) {
-                if gear.stat_array != gear_compare.stat_array {
-                    ll.push_back(&gear_compare);
-                }
+    for item in vault_filtered.iter() {
+        let mut worse: Vec<&Record> = Vec::new();
+        for other in vault_filtered.iter() {
+            if item.stat_array.collective_ge(&other.stat_array)
+                && item.stat_array != other.stat_array
+                && !other.exotic
+                && !item.exotic
+            {
+                worse.push(other);
             }
         }
-        // ll will always have at least 1 item, if there's more then we've
-        // found something that is lower in every stat
-        if ll.len() > 1 {
-            objectively_better.push(ll);
+        if !worse.is_empty() {
+            print!("{} is objectively better than ", item);
+            for other in worse {
+                print!("{}, ", other);
+            }
+            println!();
         }
-    }
-    // print or export the results
-    for mut ll in objectively_better {
-        let first_item = ll.front().unwrap();
-        if first_item.exotic {
-            continue;
-        } // ignore exotics
-        print!("{} is objectively better than ", first_item);
-        ll.pop_front();
-        while ll.len() > 0 {
-            let item = ll.front().unwrap();
-            print!(" {}{}", item, if ll.len() > 1 { "," } else { "" });
-            ll.pop_front();
-        }
-        println!();
     }
 }
 
