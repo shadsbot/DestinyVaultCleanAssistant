@@ -1,8 +1,12 @@
 use csv::Reader;
-use std::collections::LinkedList;
 use std::process::exit;
-use std::{cmp::Ordering, env, ffi::OsString, fmt, fs::File, path::PathBuf, str::FromStr};
-use thiserror::Error;
+use std::{env, fs::File, path::PathBuf, str::FromStr};
+
+mod datastructures;
+use crate::datastructures::d2::*;
+
+#[cfg(test)]
+mod tests;
 
 fn main() {
     println!("Destiny: Armour Scrap Advisor");
@@ -41,132 +45,6 @@ fn main() {
     print_full_gear_heirarchy(&vault, Class::Warlock);
     print_full_gear_heirarchy(&vault, Class::Hunter);
     print_full_gear_heirarchy(&vault, Class::Titan);
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("IO error {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("Invalid Couldn't Parse")]
-    InvalidParse,
-
-    #[error("CSV error {0}")]
-    CSV(#[from] csv::Error),
-
-    #[error("{0}")]
-    Other(&'static str),
-}
-
-#[derive(Debug, PartialEq)]
-enum Class {
-    Warlock,
-    Titan,
-    Hunter,
-}
-
-impl FromStr for Class {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "Warlock" => Ok(Class::Warlock),
-            "Titan" => Ok(Class::Titan),
-            "Hunter" => Ok(Class::Hunter),
-            _ => Err(Error::InvalidParse),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-enum Kind {
-    Helmet,
-    Arms,
-    Chest,
-    Legs,
-    Bond,
-}
-
-impl FromStr for Kind {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "Helmet" => Ok(Kind::Helmet),
-            "Gauntlets" => Ok(Kind::Arms),
-            "Chest Armor" => Ok(Kind::Chest),
-            "Leg Armor" => Ok(Kind::Legs),
-            "Hunter Cloak" => Ok(Kind::Bond),
-            "Warlock Bond" => Ok(Kind::Bond),
-            "Titan Mark" => Ok(Kind::Bond),
-            _ => Err(Error::InvalidParse),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, PartialOrd, Eq)]
-struct Stats {
-    mobility: i8,
-    resilience: i8,
-    recovery: i8,
-    discipline: i8,
-    intelligence: i8,
-    strength: i8,
-}
-
-impl fmt::Display for Stats {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "({:<2} {:<2} {:<2} {:<2} {:<2} {:<2})",
-            self.mobility,
-            self.resilience,
-            self.recovery,
-            self.discipline,
-            self.intelligence,
-            self.strength
-        )
-    }
-}
-
-impl Stats {
-    // ord seems to have a hard time with multiple keys to sort by
-    // and trying to find help online just results in a bunch of
-    // explanations about floating point imprecision? so we're going
-    // to try making a rust-looking way of getting what we want
-    fn collective_ge(&self, other: &Self) -> bool {
-        return self.mobility >= other.mobility
-            && self.resilience >= other.resilience
-            && self.recovery >= other.recovery
-            && self.discipline >= other.discipline
-            && self.intelligence >= other.intelligence
-            && self.strength >= other.strength;
-    }
-}
-
-#[derive(Debug)]
-struct Record {
-    name: String,
-    id: u64,
-    armor: Kind,
-    class: Class,
-    exotic: bool,
-    stat_array: Stats,
-}
-
-impl fmt::Display for Record {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}{} {}",
-            match self.exotic {
-                true => "*",
-                false => "",
-            },
-            self.name,
-            self.stat_array
-        )
-    }
 }
 
 fn import_items(mut reader: Reader<File>) -> Vec<Record> {
