@@ -1,9 +1,9 @@
+mod datastructures;
+
 use csv::Reader;
+use datastructures::d2::*;
 use std::process::exit;
 use std::{env, fs::File, path::PathBuf, str::FromStr};
-
-mod datastructures;
-use crate::datastructures::d2::*;
 
 #[cfg(test)]
 mod tests;
@@ -27,6 +27,7 @@ fn main() {
             );
             exit(1);
         });
+
     let reader = Reader::from_reader(file);
     let vault = import_items(reader);
 
