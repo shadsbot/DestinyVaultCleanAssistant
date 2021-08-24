@@ -12,23 +12,21 @@ fn main() {
     println!("Destiny: Armour Scrap Advisor");
 
     let file_path = get_path_env();
-    let file = match File::open(&file_path)
+    let file = File::open(&file_path)
         .map_err(|e| Error::Io(e))
         .and_then(
             |f| match file_path.extension().unwrap_or_default() == "csv" {
                 true => Ok(f),
                 false => Err(Error::Other("Couldn't find CSV file.")),
             },
-        ) {
-        Ok(file) => file,
-        Err(e) => {
+        )
+        .unwrap_or_else(|e| {
             println!("\t{}", e);
             println!(
                 "\tUsage: Either pass in a .csv from DIM or put dim.csv in the calling directory."
             );
             exit(1);
-        }
-    };
+        });
     let reader = Reader::from_reader(file);
     let vault = import_items(reader);
 
