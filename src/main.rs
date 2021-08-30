@@ -1,7 +1,7 @@
 mod datastructures;
 
 use csv::Reader;
-use datastructures::d2::*;
+use datastructures::*;
 use std::process::exit;
 use std::{env, fs::File, path::PathBuf, str::FromStr};
 
