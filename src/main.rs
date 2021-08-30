@@ -13,7 +13,7 @@ fn main() {
 
     let file_path = get_path_env();
     let file = File::open(&file_path)
-        .map_err(|e| Error::Io(e))
+        .map_err(|e| Error::IO(e))
         .and_then(
             |f| match file_path.extension().unwrap_or_default() == "csv" {
                 true => Ok(f),
